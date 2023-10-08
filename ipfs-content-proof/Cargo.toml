@@ -1,0 +1,20 @@
+[package]
+name = "ipfs_content_proof"
+version = "0.1.0"
+edition = "2021"
+
+# default-run = "ecdsa-example"
+
+[dependencies]
+clap = "4.4"
+actix-rt = "2.0"
+# ecdsa-methods = { path = "./methods" }
+k256 = { version = "0.13", features = ["serde"] }
+rand_core = "0.6.4"
+risc0-zkvm = {  version = "0.18.0" }
+serde = "1.0"
+ipfs_host = { path = "./ipfs_host" }
+[features]
+cuda = ["risc0-zkvm/cuda"]
+default = []
+metal = ["risc0-zkvm/metal"]

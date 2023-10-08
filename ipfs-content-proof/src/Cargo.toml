@@ -1,0 +1,10 @@
+[package]
+name = "mymain"
+version = "0.1.0"
+edition = "2021"
+
+# default-run = "ecdsa-example"
+
+[dependencies]
+actix-rt = "2.0"
+hex = "0.4"

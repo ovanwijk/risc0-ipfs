@@ -1,0 +1,24 @@
+[package]
+name = "ipfs_host"
+version = "0.1.0"
+edition = "2021"
+
+# default-run = "ecdsa-example"
+
+[dependencies]
+rust-ipfs = { git = "https://github.com/dariusc93/rust-ipfs.git" }
+ipfs-api-backend-actix = "0.7"
+ipfs_messages = { path = "./proto_messages" }
+ipfs_core = { path = "../ipfs_core" }
+futures = "0.3"
+hex = "0.4"
+bs58 = "0.5.0"
+hex-slice = "0.1.4"
+prost = "0.12"
+prost-derive = "0.12"
+prost-types = "0.12"
+bytes = "1.0"
+async-recursion = "1.0.0"
+
+[build-dependencies]
+prost-build = { version = "0.12" }

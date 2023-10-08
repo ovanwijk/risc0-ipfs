@@ -1,0 +1,11 @@
+[package]
+name = "ipfs_core"
+version = "0.1.0"
+edition = "2021"
+
+# default-run = "ecdsa-example"
+
+[dependencies]
+
+
+[build-dependencies]
