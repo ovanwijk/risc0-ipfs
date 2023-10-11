@@ -12,12 +12,12 @@ message PBLink {
   
   // An IPFS MerkleDAG Node
   message PBNode {
-  
+    // opaque user data
+    optional bytes Data = 1;
     // refs to other objects
     repeated PBLink Links = 2;
   
-    // opaque user data
-    optional bytes Data = 1;
+    
   }
 
 

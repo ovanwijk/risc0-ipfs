@@ -1,0 +1,7 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./ipfs-content-proof/methods/guest/Cargo.toml",
+        "./ipfs-content-proof/Cargo.toml",
+        
+    ]
+}
