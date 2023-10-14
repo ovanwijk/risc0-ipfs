@@ -13,22 +13,31 @@
 // limitations under the License.
 
 #![no_main]
+use std::io::Read;
+
 use ipfs_core::IpfsProof;
 use risc0_zkvm::guest::env;
+use risc0_zkvm;
+use risc0_zkvm::serde::to_vec;
 
 risc0_zkvm::guest::entry!(main);
-
+const BUFFER_SIZE: usize = 1 << 14;
 fn main() {
     // Decode the verifying key, message, and signature from the inputs.
-    //let proof_slice = env::read_slice(slice)
+    //let proof_slice = env::read(slice)
     let ipfs_proof_request: IpfsProof = env::read();
     
 
-    // Verify the signature, panicking if verification fails.
+    
+
+    println!("Finished in {} cycles", env::get_cycle_count());
+
+    println!("Current in {} cwycles", env::get_cycle_count());
+    //Verify the signature, panicking if verification fails.
     let res = ipfs_proof_request.calculate_proof();
 
-    // Commit to the journal the verifying key and message that was signed.
-    env::commit(&res.0);
-    env::commit(&res.1);
+    // // Commit to the journal the verifying key and message that was signed.
+    env::commit(&res.hash);
+    env::commit(&res.data);
     println!("Finished in {} cycles", env::get_cycle_count());
 }

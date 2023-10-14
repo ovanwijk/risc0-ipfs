@@ -9,11 +9,12 @@ edition = "2021"
 rust-ipfs = { git = "https://github.com/dariusc93/rust-ipfs.git" }
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2/v0.10.6-risc0" }
 
-ipfs-api-backend-actix = "0.7"
+ipfs-api-backend-hyper = "0.6"
 ipfs_messages = { path = "./proto_messages" }
 ipfs_core = { path = "../ipfs_core" }
 futures = "0.3"
 hex = "0.4"
+tokio = { version = "1", features = ["full"] }
 bs58 = "0.5.0"
 hex-slice = "0.1.4"
 prost = "0.12"

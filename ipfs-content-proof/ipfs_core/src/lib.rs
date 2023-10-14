@@ -16,13 +16,19 @@ pub struct IpfsProof {
     pub data_selector: HashMap<u64, (u64,u64)>
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ProofReceipt {
+    pub hash: Vec<u8>,
+    pub data: Vec<u8>
+}
+
 impl IpfsProof {
     // Return 0 is the hash, return 1 is the subselection of data
-    pub fn calculate_proof(&self) -> (Vec<u8>, Vec<u8>) {
+    pub fn calculate_proof(&self) -> ProofReceipt {
         
         
         let res = self.calculate_proof_req(&self.proof, vec![], 0);
-        (res.0, res.1)
+        ProofReceipt{hash: res.0, data: res.1}
     }
     
 

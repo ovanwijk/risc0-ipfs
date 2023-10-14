@@ -10,12 +10,26 @@ clap = "4.4"
 actix-rt = "2.0"
 bs58 = "0.5.0"
 methods = { path = "./methods" }
+tokio = { version = "1", features = ["full"] }
+bonsai-sdk = "0.4.0"
+uuid = { version = "1.4.1", features = ["v4"] }
+hex = "0.4"
+axum = {version = "0.6.20", features = ["macros"] }
+hyper = {version = "0.14.25"}
+bincode = "1.3.3"
+bytemuck = "1.7.2"
+anyhow = "1.0"
+tracing = "0.1"
+ethers = {version = "2.0.10"}
+async-channel = "1.9.0"
+futures-util = "0.3"
 # ecdsa-methods = { path = "./methods" }
 k256 = { version = "0.13", features = ["serde"] }
 rand_core = "0.6.4"
 risc0-zkvm = {  version = "0.18.0" }
 serde = "1.0"
 ipfs_host = { path = "./ipfs_host" }
+ipfs_core = { path = "./ipfs_core" }
 [features]
 cuda = ["risc0-zkvm/cuda"]
 default = []

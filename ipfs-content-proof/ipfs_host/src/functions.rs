@@ -7,8 +7,8 @@ use futures::executor::block_on;
 use futures::lock::Mutex;
 use prost::Message;
 use ipfs_core::IpfsProof;
-use ipfs_api_backend_actix::IpfsClient;
-use ipfs_api_backend_actix::IpfsApi;
+use ipfs_api_backend_hyper::IpfsClient;
+use ipfs_api_backend_hyper::IpfsApi;
 use ipfs_messages::messages;
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -108,7 +108,7 @@ pub fn build_proof(
 
 use sha2::{Sha256, Digest};
 pub async fn select_from_ipfs_generate_guest_input(hash: &str, start: u64, end: u64) -> IpfsProof {
-    let (data, _, found_entries) = depth_first_search(hash, 0, start, end, vec![], vec![]).await.unwrap();
+    let (data, _, found_entries) = depth_first_search(hash, 0, start, end, vec![], vec![]).await;
     let mut hm:HashMap<Vec<u8>, (Vec<u8>, messages::PbNode,Vec<u8>)> = HashMap::new();
     let res = get_block_bytes(hash).await;
     println!("Data length: {}", end - start);
@@ -144,8 +144,8 @@ pub async fn select_from_ipfs_generate_guest_input(hash: &str, start: u64, end: 
         data_selector: result_map
     };
     let ressss = to_return.calculate_proof();
-    println!("{}", String::from_utf8(ressss.1).unwrap());
-    println!("Does it work? {}", bs58::encode(ressss.0).into_string());
+    println!("{}", String::from_utf8(ressss.data).unwrap());
+    println!("Does it work? {}", bs58::encode(ressss.hash).into_string());
     to_return
 
 }
@@ -155,20 +155,26 @@ pub async fn select_from_ipfs_generate_guest_input(hash: &str, start: u64, end: 
 pub async fn get_block_bytes(hash:&str) -> Vec<u8> {
     println!("Getting hash: {}", hash);
     let client = IpfsClient::default();
-    client.block_get(hash)
-        .map_ok(|chunk| chunk.to_vec())
-        .try_concat()
-        .await.expect("Not to crash")
+    let hash_clone = hash.clone().to_owned();
+    let result = tokio::task::spawn_blocking(move || {
+        block_on(client.block_get(&hash_clone)
+            .map_ok(|chunk| chunk.to_vec())
+            .try_concat())
+    }).await.expect("Not to crash");
+    match result {
+        Ok(bytes) => bytes,
+        Err(_) => vec![], // handle error appropriately
+    }
 }
-#[async_recursion(?Send)]
-pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u64, end: u64, history: Vec<messages::PbNode>, raw_history:Vec<Vec<u8>>) -> Result<(Vec<u8>, u64, Vec<SingleDataEntry>), Box<dyn std::error::Error>> {
+#[async_recursion]
+pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u64, end: u64, history: Vec<messages::PbNode>, raw_history:Vec<Vec<u8>>) -> (Vec<u8>, u64, Vec<SingleDataEntry>) {
     //TODO we need 2 positions, 1 for actual data extraction and 1 for tree search, treesearch should be 
     // measured in an offset to the start and end.
     println!("Executing {} {} ", hash, current_data_position);
     let res = get_block_bytes(hash).await;
-    let pb_node = messages::PbNode::decode(&mut Cursor::new(&res))?;
+    let pb_node = messages::PbNode::decode(&mut Cursor::new(&res)).unwrap();
     let pn_node_clone = pb_node.clone();
-    let pb_node_data = messages::Data::decode(&mut Cursor::new( pb_node.data.unwrap().clone()))?;
+    let pb_node_data = messages::Data::decode(&mut Cursor::new( pb_node.data.unwrap().clone())).unwrap();
     //let mut nodes = Vec::new();
     let mut sub_selection = Vec::new();
     let mut new_data_position = current_data_position;
@@ -216,7 +222,7 @@ pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u
         }
         new_data_position = new_end;
        
-        Ok((sub_selection, new_data_position, return_set))
+        (sub_selection, new_data_position, return_set)
     } else {
         
         for link in pb_node.links {
@@ -226,7 +232,7 @@ pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u
                         let (new_sub_selection, data_position, result_vecs) = 
                             depth_first_search( 
                                 &hash2,
-                                new_data_position.clone(), start, end, new_history.clone(), new_raw_history.clone()).await?;
+                                new_data_position.clone(), start, end, new_history.clone(), new_raw_history.clone()).await;
                         return_set.extend(result_vecs);
                         //sub_selection.extend(new_sub_selection);
                         //new_start_position += new_sub_selection.len() as u64;
@@ -235,7 +241,7 @@ pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u
                 
             }
             //println!("Curret size:{}, start: {} - ", current_size, start);
-            Ok((sub_selection, new_data_position, return_set))
+            (sub_selection, new_data_position, return_set)
         }
     
 
