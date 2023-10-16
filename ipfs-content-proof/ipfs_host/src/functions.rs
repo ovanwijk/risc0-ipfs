@@ -18,10 +18,16 @@ use std::vec;
 use futures::TryStreamExt;
 use std::io::{self, Write};
 use hex::encode;
-use hex_slice::AsHex;
 pub fn hello_world() {
     println!("Hello, world!");
 }
+
+/*
+    A single link is 46 bytes or 45 or 44, as shrinking in containing size, max 6 bytes (280 terrabyte)
+    Empty 'data' is 28 bytes
+    Block size is varint, based on blocksize, max 6 bytes
+
+*/
 
 fn find_pattern_in_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || needle.len() > haystack.len() {
@@ -173,12 +179,18 @@ pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u
     println!("Executing {} {} ", hash, current_data_position);
     let res = get_block_bytes(hash).await;
     let pb_node = messages::PbNode::decode(&mut Cursor::new(&res)).unwrap();
+    //println!("{}", hex::encode(res.clone()));
     let pn_node_clone = pb_node.clone();
     let pb_node_data = messages::Data::decode(&mut Cursor::new( pb_node.data.unwrap().clone())).unwrap();
     //let mut nodes = Vec::new();
     let mut sub_selection = Vec::new();
     let mut new_data_position = current_data_position;
-    
+   // let mut vv = vec![];
+    //messages::PbLink::encode(pn_node_clone.links.get(0).unwrap(), &mut vv).unwrap();
+    // /println!("Orignal sizes: {},  {}, {}",  
+    //     res.len(), 
+    //     pn_node_clone.clone().data.unwrap().len(),
+    //     vv.len());
     let mut return_set:Vec<SingleDataEntry> = Vec::new();
     let mut new_history = history.clone();
     let mut new_raw_history = raw_history.clone();
