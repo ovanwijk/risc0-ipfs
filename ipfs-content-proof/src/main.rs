@@ -74,10 +74,10 @@ pub struct BonsaiResponse {
     postStateDigest: Token
 }
 
-#[tokio::main]
+#[tokio::main] 
 async fn main() {
     let app = Router::new().route("/generateproof", post(generate_proof));
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
     let server = Server::bind(&addr)
         .http1_keepalive(true)
         .serve(app.into_make_service());

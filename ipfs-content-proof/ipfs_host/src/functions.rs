@@ -139,8 +139,14 @@ pub async fn select_from_ipfs_generate_guest_input(hash: &str, start: u64, end: 
             //println!("{},  {:?}", hex::encode(hashed_result.clone()), find_pattern_in_vec(res.as_slice(), hashed_result.as_slice()));
         }
     }
+    let mut hasher = Sha256::new();
+    hasher.update(&res);
+    let mut hashed_result:Vec<u8> = Vec::new();
+    hashed_result.extend_from_slice(&SHA256_PREFIX);
+    hashed_result.extend(hasher.finalize().to_vec());
+    let original_data = &hm.get(&hashed_result).unwrap().2;
     let pb_node = messages::PbNode::decode(&mut Cursor::new(&res)).unwrap();
-    let (proof, selectors,_) = build_proof(res.clone(), pb_node, vec![], hm, 0);
+    let (proof, selectors,_) = build_proof(res.clone(), pb_node, original_data.clone(), hm, 0);
     let mut result_map: HashMap<u64, (u64, u64)> = HashMap::new();
     for item in selectors.clone(){
         result_map.insert(item.0, (item.1, item.2));
