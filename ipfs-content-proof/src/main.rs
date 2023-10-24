@@ -14,9 +14,6 @@ use ipfs_core::ProofReceipt;
 use std::time::Duration;
 use std::result::Result;
 use bs58;
-mod proving;
-
-use proving::session_manager;
 use hex;
 use methods::{VERIFY_IPFS_CONTENT_ELF, VERIFY_IPFS_CONTENT_ID};
 use risc0_zkvm::{
@@ -48,7 +45,7 @@ use hyper::Server;
     // ).await;
 async fn test_stuff() {
     //ipfs_host::functions::get_block_bytes(hash)
-    let result =ipfs_host::functions::select_from_ipfs_generate_guest_input(
+    let result =ipfs_host::v0_proof::select_from_ipfs_generate_guest_input(
         "baguqeerasords4njcts6vs7qvdjfcvgnume4hqohf65zsfguprqphs3icwea", 
         //1, 300
         176, 
@@ -77,7 +74,13 @@ pub struct BonsaiResponse {
 #[tokio::main] 
 async fn main() {
     let app = Router::new().route("/generateproof", post(generate_proof));
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
+    let port = std::env::var("PORT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3001);
+
+    
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let server = Server::bind(&addr)
         .http1_keepalive(true)
         .serve(app.into_make_service());
@@ -91,7 +94,7 @@ pub async fn generate_proof2(Json(req): Json<BonsaiRequest>) -> StatusCode {
 
 pub async fn generate_proof(Json(req): Json<BonsaiRequest>) -> Json<BonsaiResponse> {
     
-    let result = ipfs_host::functions::select_from_ipfs_generate_guest_input(
+    let result = ipfs_host::v1_proof::select_from_ipfs_generate_guest_input(
         &req.hash.clone(), 
         req.start.clone() as u64, 
         req.end.clone() as u64,
