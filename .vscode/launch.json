@@ -9,6 +9,7 @@
             "program": "${fileDirname}/../target/debug/${fileBasenameNoExtension}",
             "args": [],
             "cwd": "${workspaceRoot}",
+            "envFile": "${workspaceRoot}/bonsai.env",
             "sourceLanguages": [
                 "rust"
             ]

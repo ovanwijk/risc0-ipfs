@@ -193,8 +193,11 @@ pub async fn get_block_bytes(hash:&str) -> Vec<u8> {
 }
 
 
-fn take_from_bytes(data: &Vec<u8>, current_data_position: u64, start: u64, end: u64, history: &Vec<messages::PbNode>, raw_history:&Vec<Vec<u8>>) -> Option<()>  {
+fn take_from_bytes(data: &Vec<u8>, current_data_position: u64, start: u64, end: u64, history: &Vec<messages::PbNode>, raw_history:&Vec<Vec<u8>>) -> (Vec<u8>, u64, Vec<SingleDataEntry>)  {
     let mut new_history = history.clone();
+    let mut new_data_position = current_data_position;
+    let mut return_set:Vec<SingleDataEntry> = Vec::new();
+    let mut sub_selection = vec![];
     let select_max_length = end - start;
             let data_len = data.clone().len() as u64;
             
@@ -213,7 +216,7 @@ fn take_from_bytes(data: &Vec<u8>, current_data_position: u64, start: u64, end: 
                 let end_cut = std::cmp::min(data_len - 1, start_cut + (select_max_length + start - current_data_position)) ; //end
             
                 //nodes.push(pn_node_clone.clone());
-                let sub_selection = data[(start_cut) as usize..(end_cut) as usize].to_vec();
+                sub_selection = data[(start_cut) as usize..(end_cut) as usize].to_vec();
                 println!("Sub selection{}", sub_selection.len());
                 let datas: Vec<messages::Data> = 
                 new_history.iter().map(|node| {
@@ -230,6 +233,7 @@ fn take_from_bytes(data: &Vec<u8>, current_data_position: u64, start: u64, end: 
                 });
             }
             new_data_position = new_end;
+            (sub_selection, new_data_position, return_set)
 }
 
 #[async_recursion]
@@ -249,7 +253,8 @@ pub async fn depth_first_search(hash: &Vec<u8>, current_data_position: u64, star
     if hash.starts_with(&RAW_PREFIX) {
         // Your code here
         //TODO move parsing code here
-        (sub_selection, new_data_position, return_set)
+        take_from_bytes(&res.clone(), current_data_position, start, end, &new_history, &new_raw_history)
+        //(sub_selection, new_data_position, return_set)
     }else {
         
         
@@ -316,7 +321,7 @@ pub async fn depth_first_search(hash: &Vec<u8>, current_data_position: u64, star
             for link in pb_node.links {
                     if new_data_position < end {
                         //Remake it a base32 hash
-                            if link.hash.unwrap().starts_with(&RAW_PREFIX) {
+                            if link.clone().hash.unwrap().starts_with(&RAW_PREFIX) {
                                 // Your code here
                             }
                             let (new_sub_selection, data_position, result_vecs) = 

@@ -2,12 +2,13 @@
 extern crate ipfs_host;
 extern crate ipfs_core;
 use std::{str, time::Instant};
+use std::env;
 use std::sync::Arc;
 use std::sync::Mutex;
 use axum::response::Response;
 use bincode::Error;
 use ::bonsai_sdk::alpha::responses::SnarkReceipt;
-use ::bonsai_sdk::alpha::responses::Groth16Seal;
+
 use ethers::abi::{Token, Tokenizable};
 use ethers::types::U256;
 use ipfs_core::ProofReceipt;
@@ -17,9 +18,10 @@ use bs58;
 use hex;
 use methods::{VERIFY_IPFS_CONTENT_ELF, VERIFY_IPFS_CONTENT_ID};
 use risc0_zkvm::{
-    Receipt, serde::{to_vec, from_slice}, MemoryImage, Program, MEM_SIZE, PAGE_SIZE,
+    Receipt, serde::{to_vec, from_slice}, PAGE_SIZE, compute_image_id
 
 };
+
 
 use bonsai_sdk::alpha as bonsai_sdk;
 use tokio::runtime::Runtime;
@@ -28,7 +30,9 @@ use axum::{extract::Json,response::IntoResponse, routing::post, Router, http::St
 use serde::{Serialize, Deserialize};
 use std::net::SocketAddr;
 use hyper::Server;
-
+fn load_env() {
+    dotenv::dotenv().ok();
+}
  //529215 - 529299 : 
     //1085148		00768944084			BETHAN SARAH COLLINGRIDGE	BETHAN SARAH	COLLINGRIDGE						true
     //45623854
@@ -67,12 +71,13 @@ pub struct BonsaiRequest {
 pub struct BonsaiResponse { 
     imageId: Token,
     journal: Token,
-    seal: Token,
+    //seal: Token,
     postStateDigest: Token
 }
 
 #[tokio::main] 
 async fn main() {
+    load_env();
     let app = Router::new().route("/generateproof", post(generate_proof));
     let port = std::env::var("PORT")
         .ok()
@@ -94,7 +99,7 @@ pub async fn generate_proof2(Json(req): Json<BonsaiRequest>) -> StatusCode {
 
 pub async fn generate_proof(Json(req): Json<BonsaiRequest>) -> Json<BonsaiResponse> {
     
-    let result = ipfs_host::v1_proof::select_from_ipfs_generate_guest_input(
+    let result = ipfs_host::v0_proof::select_from_ipfs_generate_guest_input(
         &req.hash.clone(), 
         req.start.clone() as u64, 
         req.end.clone() as u64,
@@ -111,12 +116,12 @@ pub async fn generate_proof(Json(req): Json<BonsaiRequest>) -> Json<BonsaiRespon
     Json(BonsaiResponse { 
             imageId: Token::FixedBytes(hex::decode(image_id).unwrap()),
             journal: Token::Bytes(snark.journal),
-            seal: Token::Bytes(ethers::abi::encode(&[tokenize_snark_receipt(&snark.snark).unwrap()])),
+            //seal: Token::Bytes(ethers::abi::encode(&[tokenize_snark_receipt(&snark.snark).unwrap()])),
             postStateDigest: Token::FixedBytes(snark.post_state_digest)
        })
 }
 fn run_stark2snark(session_id: String) -> Result<SnarkReceipt, Box<dyn std::error::Error>> {
-    let client = bonsai_sdk::Client::from_env().unwrap();
+    let client = bonsai_sdk::Client::from_env("0.21.0").unwrap();
 
     let snark_session = client.create_snark(session_id).unwrap();
     tracing::info!("Created snark session: {}", snark_session.uuid);
@@ -142,15 +147,20 @@ fn run_stark2snark(session_id: String) -> Result<SnarkReceipt, Box<dyn std::erro
 }
 
 fn run_bonsai(input_data: Vec<u32>) -> Result<(Receipt, SnarkReceipt, String), Box<dyn std::error::Error>> {
-    let client = bonsai_sdk::Client::from_env().unwrap();
+    let client = bonsai_sdk::Client::from_env(risc0_zkvm::VERSION).unwrap();
 
     // create the memoryImg, upload it and return the imageId
     let img_id = {
-        let program = Program::load_elf(VERIFY_IPFS_CONTENT_ELF, MEM_SIZE as u32).unwrap();
-        let image = MemoryImage::new(&program, PAGE_SIZE as u32).unwrap();
-        let image_id = hex::encode(image.compute_id());
-        let image = bincode::serialize(&image).expect("Failed to serialize memory img");
-        client.upload_img(&image_id, image).unwrap();
+        // let program = Program::load_elf(VERIFY_IPFS_CONTENT_ELF, MEM_SIZE as u32).unwrap();
+        // let image = MemoryImage::new(&program, PAGE_SIZE as u32).unwrap();
+        let image_id = hex::encode(compute_image_id(VERIFY_IPFS_CONTENT_ELF)?);
+        //let image = bincode::serialize(&image).expect("Failed to serialize memory img");
+        let rrr = client.upload_img(&image_id, VERIFY_IPFS_CONTENT_ELF.to_vec())?;
+        // match rrr {
+        //     Ok(_) => (),
+        //     Err(e) => println!("Error occurred: {}", e),
+        // }
+        //client.upload_img(&image_id, image).unwrap();
         image_id
     };
 
@@ -162,7 +172,7 @@ fn run_bonsai(input_data: Vec<u32>) -> Result<(Receipt, SnarkReceipt, String), B
     let input_id = client.upload_input(input_data).unwrap();
 
     // Start a session running the prover
-    let session = client.create_session(img_id.clone(), input_id).unwrap();
+    let session = client.create_session(img_id.clone(), input_id, vec![]).unwrap();
     println!("Sessionid: {}", session.uuid);
     loop {
         let res = session.status(&client).unwrap();
@@ -183,7 +193,7 @@ fn run_bonsai(input_data: Vec<u32>) -> Result<(Receipt, SnarkReceipt, String), B
 
             let receipt_buf = client.download(&receipt_url).unwrap();
             let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
-            let rrr: ProofReceipt = from_slice(&receipt.journal).unwrap();
+            let rrr: ProofReceipt = from_slice(&receipt.journal.bytes).unwrap();
             println!("IPFS Data {:#?}", String::from_utf8(rrr.clone().data));
             println!("IPFS Hash {}", bs58::encode(&rrr.hash).into_string());
             receipt
@@ -203,36 +213,36 @@ fn run_bonsai(input_data: Vec<u32>) -> Result<(Receipt, SnarkReceipt, String), B
 
 
 
-pub fn tokenize_snark_receipt(proof: &Groth16Seal) -> anyhow::Result<Token> {
+// pub fn tokenize_snark_receipt(proof: &Groth16Seal) -> anyhow::Result<Token> {
     
-    Ok(Token::FixedArray(vec![
-        Token::FixedArray(
-            proof
-                .a
-                .iter()
-                .map(|elm| U256::from_big_endian(elm).into_token())
-                .collect(),
-        ),
-        Token::FixedArray(vec![
-            Token::FixedArray(
-                proof.b[0]
-                    .iter()
-                    .map(|elm| U256::from_big_endian(elm).into_token())
-                    .collect(),
-            ),
-            Token::FixedArray(
-                proof.b[1]
-                    .iter()
-                    .map(|elm| U256::from_big_endian(elm).into_token())
-                    .collect(),
-            ),
-        ]),
-        Token::FixedArray(
-            proof
-                .c
-                .iter()
-                .map(|elm| U256::from_big_endian(elm).into_token())
-                .collect(),
-        ),
-    ]))
-}
+//     Ok(Token::FixedArray(vec![
+//         Token::FixedArray(
+//             proof
+//                 .a
+//                 .iter()
+//                 .map(|elm| U256::from_big_endian(elm).into_token())
+//                 .collect(),
+//         ),
+//         Token::FixedArray(vec![
+//             Token::FixedArray(
+//                 proof.b[0]
+//                     .iter()
+//                     .map(|elm| U256::from_big_endian(elm).into_token())
+//                     .collect(),
+//             ),
+//             Token::FixedArray(
+//                 proof.b[1]
+//                     .iter()
+//                     .map(|elm| U256::from_big_endian(elm).into_token())
+//                     .collect(),
+//             ),
+//         ]),
+//         Token::FixedArray(
+//             proof
+//                 .c
+//                 .iter()
+//                 .map(|elm| U256::from_big_endian(elm).into_token())
+//                 .collect(),
+//         ),
+//     ]))
+// }

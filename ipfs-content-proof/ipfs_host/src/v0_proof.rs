@@ -1,7 +1,9 @@
 use async_recursion::async_recursion;
 use bytes::Bytes;
+use ipfs_api_backend_hyper::TryFromUri;
 use ipfs_core::ProofType;
 use sha2;
+use http::uri::Scheme;
 use bytes::BytesMut;
 use futures::executor::block_on;
 use futures::lock::Mutex;
@@ -159,7 +161,7 @@ pub async fn select_from_ipfs_generate_guest_input(hash: &str, start: u64, end: 
         data_selector: result_map
     };
     let ressss = to_return.calculate_proof();
-    println!("{}", String::from_utf8(ressss.data).unwrap());
+    //println!("{}", String::from_utf8(ressss.data).unwrap());
     println!("Does it work? {}", bs58::encode(ressss.hash).into_string());
     to_return
 
@@ -169,7 +171,11 @@ pub async fn select_from_ipfs_generate_guest_input(hash: &str, start: u64, end: 
 
 pub async fn get_block_bytes(hash:&str) -> Vec<u8> {
     println!("Getting hash: {}", hash);
-    let client = IpfsClient::default();
+    println!("Getting hash: {}", std::env::var("IPFS_API").unwrap());
+    let iphost = std::env::var("IPFS_API")
+        .ok()        
+        .unwrap_or("".to_string());
+    let client = IpfsClient::from_multiaddr_str(&iphost).unwrap();
     let hash_clone = hash.clone().to_owned();
    
     let result = tokio::task::spawn_blocking(move || {
@@ -189,7 +195,7 @@ pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u
     // measured in an offset to the start and end.
     println!("Executing {} {} ", hash, current_data_position);
     let res = get_block_bytes(hash).await;
-    println!("{}", hex::encode(res.clone()));
+    //println!("{}", hex::encode(res.clone()));
     let pb_node = messages::PbNode::decode(&mut Cursor::new(&res)).unwrap();
     
     let pn_node_clone = pb_node.clone();
