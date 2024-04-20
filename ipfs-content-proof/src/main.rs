@@ -71,7 +71,6 @@ pub struct BonsaiRequest {
 pub struct BonsaiResponse { 
     imageId: Token,
     journal: Token,
-    //seal: Token,
     postStateDigest: Token
 }
 
@@ -150,19 +149,10 @@ fn run_bonsai(input_data: Vec<u32>) -> Result<(Receipt, SnarkReceipt, String), B
     let client = bonsai_sdk::Client::from_env(risc0_zkvm::VERSION).unwrap();
 
     // create the memoryImg, upload it and return the imageId
-    let img_id = {
-        // let program = Program::load_elf(VERIFY_IPFS_CONTENT_ELF, MEM_SIZE as u32).unwrap();
-        // let image = MemoryImage::new(&program, PAGE_SIZE as u32).unwrap();
-        let image_id = hex::encode(compute_image_id(VERIFY_IPFS_CONTENT_ELF)?);
-        //let image = bincode::serialize(&image).expect("Failed to serialize memory img");
-        let rrr = client.upload_img(&image_id, VERIFY_IPFS_CONTENT_ELF.to_vec())?;
-        // match rrr {
-        //     Ok(_) => (),
-        //     Err(e) => println!("Error occurred: {}", e),
-        // }
-        //client.upload_img(&image_id, image).unwrap();
-        image_id
-    };
+    let img_id = hex::encode(compute_image_id(VERIFY_IPFS_CONTENT_ELF)?);
+        
+    let rrr = client.upload_img(&img_id, VERIFY_IPFS_CONTENT_ELF.to_vec())?;
+    
 
     println!("ImageID {} ", img_id);
 
@@ -175,7 +165,14 @@ fn run_bonsai(input_data: Vec<u32>) -> Result<(Receipt, SnarkReceipt, String), B
     let session = client.create_session(img_id.clone(), input_id, vec![]).unwrap();
     println!("Sessionid: {}", session.uuid);
     loop {
-        let res = session.status(&client).unwrap();
+        let res = match session.status(&client) {
+            Ok(res) => res,
+            Err(err) => {
+                eprintln!("Error getting session status: {}", err);
+                continue;
+            }
+        };
+
         if res.status == "RUNNING" {
             println!(
                 "Current status: {} - state: {} - continue polling...",
@@ -185,22 +182,54 @@ fn run_bonsai(input_data: Vec<u32>) -> Result<(Receipt, SnarkReceipt, String), B
             std::thread::sleep(Duration::from_secs(3));
             continue;
         }
+
         if res.status == "SUCCEEDED" {
             // Download the receipt, containing the output
             let receipt_url = res
                 .receipt_url
                 .expect("API error, missing receipt on completed session");
 
-            let receipt_buf = client.download(&receipt_url).unwrap();
-            let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
-            let rrr: ProofReceipt = from_slice(&receipt.journal.bytes).unwrap();
+            let receipt_buf = match client.download(&receipt_url) {
+                Ok(buf) => buf,
+                Err(err) => {
+                    eprintln!("Error downloading receipt: {}", err);
+                    continue;
+                }
+            };
+
+            let receipt: Receipt = match bincode::deserialize(&receipt_buf) {
+                Ok(receipt) => receipt,
+                Err(err) => {
+                    eprintln!("Error deserializing receipt: {}", err);
+                    continue;
+                }
+            };
+
+            let rrr: ProofReceipt = match from_slice(&receipt.journal.bytes) {
+                Ok(rrr) => rrr,
+                Err(err) => {
+                    eprintln!("Error processing proof receipt: {}", err);
+                    continue;
+                }
+            };
+
             println!("IPFS Data {:#?}", String::from_utf8(rrr.clone().data));
             println!("IPFS Hash {}", bs58::encode(&rrr.hash).into_string());
-            receipt
-                .verify(VERIFY_IPFS_CONTENT_ID)
-                .expect("Receipt verification failed");
-            let sss = run_stark2snark(session.uuid).unwrap();
-            return Ok((receipt, sss, img_id))
+
+            if let Err(err) = receipt.verify(VERIFY_IPFS_CONTENT_ID) {
+                eprintln!("Receipt verification failed: {}", err);
+                continue;
+            }
+
+            let sss = match run_stark2snark(session.uuid.clone()) {
+                Ok(sss) => sss,
+                Err(err) => {
+                    eprintln!("Error running stark2snark: {}", err);
+                    continue;
+                }
+            };
+
+            return Ok((receipt, sss, img_id));
         } else {
             panic!("Workflow exited: {} - | err: {}", res.status, res.error_msg.unwrap_or_default());
         }

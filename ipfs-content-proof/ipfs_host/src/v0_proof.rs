@@ -52,13 +52,11 @@ fn cut_vec(vec: Vec<u8>, index: usize, length: usize) -> (Vec<u8>, Vec<u8>) {
 pub struct SingleDataEntry {
     raw: Vec<Vec<u8>>,
     nodes: Vec<messages::PbNode>, 
-    datas: Vec<messages::Data>, 
     subset: Vec<u8>,
-    start: u64,
-    end: u64,
 
 }
 
+//Some default IPFS pre-fixes
 pub const SHA256_PREFIX: [u8; 2] = [18, 32];
 pub const DAG_PB_PREFIX: [u8; 4] = [1, 112, 18, 32];
 pub const RAW_PREFIX: [u8; 4] = [1, 85, 18, 32];
@@ -111,15 +109,13 @@ pub fn build_proof(
             
         }
         
-        
-        println!("Exected position {}", position);
     (to_return, selectors, position)
 }
 
 use sha2::{Sha256, Digest};
 
 pub async fn select_from_ipfs_generate_guest_input(hash: &str, start: u64, end: u64) -> IpfsProof {
-    let (data, _, found_entries) = depth_first_search(hash, 0, start, end, vec![], vec![]).await;
+    let (_, _, found_entries) = depth_first_search(hash, 0, start, end, vec![], vec![]).await;
     let mut hm:HashMap<Vec<u8>, (Vec<u8>, messages::PbNode,Vec<u8>)> = HashMap::new();
     let res = get_block_bytes(hash).await;
     println!("Data length: {}", end - start);
@@ -128,9 +124,7 @@ pub async fn select_from_ipfs_generate_guest_input(hash: &str, start: u64, end: 
     for i in 0..found_entries.len() {
         println!("----");
         for n in 0..found_entries[i].nodes.len() {
-            // let mut buf = BytesMut::new();
-            // found_entries[i].nodes[n].encode(&mut buf).unwrap();
-          
+                      
             let mut hasher = Sha256::new();
             hasher.update(found_entries[i].raw[n].clone());
             let mut hashed_result:Vec<u8> = Vec::new();
@@ -140,8 +134,6 @@ pub async fn select_from_ipfs_generate_guest_input(hash: &str, start: u64, end: 
                 found_entries[i].raw[n].clone(),
                 found_entries[i].nodes[n].clone(),
                 found_entries[i].subset.clone()));
-            
-            //println!("{},  {:?}", hex::encode(hashed_result.clone()), find_pattern_in_vec(res.as_slice(), hashed_result.as_slice()));
         }
     }
     let mut hasher = Sha256::new();
@@ -161,7 +153,6 @@ pub async fn select_from_ipfs_generate_guest_input(hash: &str, start: u64, end: 
         data_selector: result_map
     };
     let ressss = to_return.calculate_proof();
-    //println!("{}", String::from_utf8(ressss.data).unwrap());
     println!("Does it work? {}", bs58::encode(ressss.hash).into_string());
     to_return
 
@@ -200,22 +191,17 @@ pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u
     
     let pn_node_clone = pb_node.clone();
     let pb_node_data = messages::Data::decode(&mut Cursor::new( pb_node.data.unwrap().clone())).unwrap();
-    //let mut nodes = Vec::new();
+    
     let mut sub_selection = Vec::new();
     let mut new_data_position = current_data_position;
-   // let mut vv = vec![];
-    //messages::PbLink::encode(pn_node_clone.links.get(0).unwrap(), &mut vv).unwrap();
-    // /println!("Orignal sizes: {},  {}, {}",  
-    //     res.len(), 
-    //     pn_node_clone.clone().data.unwrap().len(),
-    //     vv.len());
+   
     let mut return_set:Vec<SingleDataEntry> = Vec::new();
     let mut new_history = history.clone();
     let mut new_raw_history = raw_history.clone();
     new_history.push(pn_node_clone.clone());
     new_raw_history.push(res.clone());
     if pb_node.links.is_empty() {
-        let mut new_start_position:u64 = start;
+        
         let select_max_length = end - start;
         let data_len = pb_node_data.data.clone().unwrap().len() as u64;
         
@@ -224,9 +210,7 @@ pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u
         let range_fully_in_data = start < current_data_position && end > new_end; // ..{.[.......].}...
         let data_started = start > current_data_position && start < new_end && end > new_end; // ...[..{.....]..}..
         let data_ended = start < current_data_position && end > current_data_position && end < new_end; // ..{.[......}.]....
-        // let data_before = current_data_position < start && new_end < start; // ...[.......]..{..}
-        // let data_after = current_data_position > end && new_end > end; // {..}.[.......]....
-        
+         
         if data_in_full_range || range_fully_in_data ||  data_started || data_ended {
             
             let start_cut = if start > current_data_position { start - current_data_position  - 1} else { 0 };
@@ -236,18 +220,11 @@ pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u
             //nodes.push(pn_node_clone.clone());
             sub_selection = pb_node_data.data.unwrap()[(start_cut) as usize..(end_cut) as usize].to_vec();
             println!("Sub selection{}", sub_selection.len());
-            let datas: Vec<messages::Data> = 
-            new_history.iter().map(|node| {
-                messages::Data::decode(&mut Cursor::new( node.clone().data.unwrap().clone())).unwrap()
-                
-            }).collect();
+            
             return_set.push(SingleDataEntry {
                 raw: new_raw_history.clone(),
                 nodes: new_history.clone(),
-                datas: datas,
-                subset: sub_selection.clone(),
-                start: start_cut,
-                end: end_cut
+                subset: sub_selection.clone()
             });
         }
         new_data_position = new_end;
@@ -264,8 +241,7 @@ pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u
                                 &hash2,
                                 new_data_position.clone(), start, end, new_history.clone(), new_raw_history.clone()).await;
                         return_set.extend(result_vecs);
-                        //sub_selection.extend(new_sub_selection);
-                        //new_start_position += new_sub_selection.len() as u64;
+                        
                         new_data_position = data_position.clone();
                 }
                 
@@ -277,136 +253,3 @@ pub async fn depth_first_search(hash: &str, current_data_position: u64, start: u
 
     
 }
-
-
-
-
-// pub async fn prepare_proof(path: Vec<String>, file: String, start: u64, end: u64) -> Result<PreparedIPFSProof, Box<dyn std::error::Error>> {
-//     let client = IpfsClient::default();
-  
-    
-//     let mut current_root = file.clone();
-
-   
-//     let mut res = get_block_bytes(&client, &current_root).await;
-
-    
-
-//     let mut pb_node = messages::PbNode::decode(&mut Cursor::new(&res))?;
-//     let mut pb_node_data = messages::Data::decode(&mut Cursor::new( pb_node.data.unwrap()))?;
-
-//     //Create toplinkNode
-//     let mut proof = PreparedIPFSProof::new(start, end,
-//          HashRequiredNode::new(None, -1, res.clone(), pb_node.clone(), pb_node_data.clone(), 0,0));
-//     let mut current_node = proof.resolving_path;
-//     let mut path_history = vec![(pb_node, pb_node_data)];
-
-//     let mut file_byte_cursor = 0;
-//     while file_byte_cursor < end {
-//         //let (n,d) = current_node.node, current_node.data;
-//         if messages::data::DataType::File as i32  != current_node.data.r#type.unwrap() {
-//             return Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, "Path must only contain files")));
-//         }
-        
-        
-
-//         //if not empty it means we have to go deeper
-//         if !current_node.node.links.is_empty() {
-//             proof.add_link_node(&current_node.node);
-//             let mut counter = 0;
-//             for blocksize in current_node.data.blocksizes {
-//                 let new_end = file_byte_cursor + blocksize;
-//                 let cid = &current_node.node.links[counter].hash.unwrap();
-//                 // []= selector, {} = datarange
-//                 let data_in_full_range = start > file_byte_cursor && end < new_end;  // ...[...{..}..]....
-//                 let range_fully_in_data = start < file_byte_cursor && end > new_end; // ..{.[.......].}...
-//                 let data_started = start > file_byte_cursor && end > new_end; // ...[..{.....]..}..
-//                 let data_ended = start < file_byte_cursor && end < new_end; // ..{.[......}.]....
-//                 let data_before = file_byte_cursor < start && new_end < start; // ...[.......]..{..}
-//                 let data_after = file_byte_cursor > end && new_end > end; // {..}.[.......]....
-
-
-
-//                 if data_started {
-//                     res = get_block_bytes(&client, hex::encode(&cid).as_str()).await;
-//                     pb_node = &messages::PbNode::decode(&mut Cursor::new(&res)).unwrap();
-//                     pb_node_data = &messages::Data::decode(&mut Cursor::new( pb_node.data.unwrap())).unwrap();
-
-                    
-//                     if current_node.node.links.is_empty() {
-//                         //This means it is a data-node, no walking down the tree anymore
-//                         //Add to resolving nodes with data, then move back
-//                         let new_node = HashRequiredNode::new(
-//                             Some(current_node), 
-//                             counter, 
-//                             res.clone(), 
-//                             pb_node.clone(), pb_node_data.clone(), current_node.find_cid_range(&cid), cid.len());
-//                         current_node.must_resove.push(new_node);
-//                     }else{
-
-//                     }
-                    
-            
-//                 }
-//                 counter += 1;
-//                 if file_byte_cursos + blocksize > start && 
-//                 file_byte_cursos += blocksize;
-                
-//             }
-//         }
-        
-//         res = get_block_bytes(&client, &current_root).await;
-
-//         pb_node = messages::PbNode::decode(&mut Cursor::new(&res))?;
-//         pb_node_data = messages::Data::decode(&mut Cursor::new( pb_node.data.unwrap()))?;
-
-//     }
-    
-//     let file_cid = proof.get_last_node().links.iter().find(|link| link.name == file || link.hash == file).map(|link| link.hash).ok_or("File not found")?;
-//     let res = client
-//         .block_get(&file_cid)
-//         .map_ok(|chunk| chunk.to_vec())
-//         .try_concat()
-//         .await?;
-
-//     let pb_node = ipfs_messages::messages::PbNode::decode(&mut Cursor::new(&res))?;
-//     proof.add_node(pb_node.clone());
-
-//     let mut current_size = 0;
-//     for blocksize in pb_node.data.blocksizes {
-//         current_size += blocksize;
-//         if current_size >= end {
-//             let res = client
-//                 .block_get(&pb_node.links.last().unwrap().hash)
-//                 .map_ok(|chunk| chunk.to_vec())
-//                 .try_concat()
-//                 .await?;
-
-//             let pb_node = ipfs_messages::messages::PbNode::decode(&mut Cursor::new(&res))?;
-//             proof.add_node(pb_node);
-//             break;
-//         }
-//     }
-
-//     Ok(proof)
-// }
-
-
-
-    
-// match client
-// .block_get("QmWSFjkXStUiLpXK3bfS5Etk2CEQ9LN59uFjGnqmdbkAqM")
-// .map_ok(|chunk| chunk.to_vec())
-// .try_concat()
-// .await
-// {
-// Ok(res) => {
-//     let aaa = ipfs_messages::messages::PbNode::decode(&mut Cursor::new(&res));
-//     let out = io::stdout();
-//     let mut out = out.lock();
-//     println!("{:}", encode(&res));
-//     println!("{:x}", res.as_hex());
-//     out.write_all(&res).unwrap();
-// }
-// Err(e) => eprintln!("error getting file: {}", e)
-// }

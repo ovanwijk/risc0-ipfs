@@ -30,14 +30,14 @@ fn main() {
 
     
 
-    println!("Finished in {} cycles", env::get_cycle_count());
+    println!("Finished in {} cycles", env::cycle_count());
 
-    println!("Current in {} cwycles", env::get_cycle_count());
+    println!("Current in {} cwycles", env::cycle_count());
     //Verify the signature, panicking if verification fails.
     let res = ipfs_proof_request.calculate_proof();
 
     // // Commit to the journal the verifying key and message that was signed.
     env::commit(&res.hash);
     env::commit(&res.data);
-    println!("Finished in {} cycles", env::get_cycle_count());
+    println!("Finished in {} cycles", env::cycle_count());
 }
